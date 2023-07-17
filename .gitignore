@@ -1,3 +1,5 @@
 .idea
 .ipynb_checkpoints
 handwritten/data
+__pycache__
+lightning_logs
