@@ -1,6 +1,8 @@
+from pathlib import Path
 import numpy as np
 import torch
 from torch import nn
+import torchvision
 import pytorch_lightning as pl
 
 
@@ -9,15 +11,15 @@ class Generator(nn.Module):
         super().__init__()
         self._img_shape = img_shape
 
-        def block(in_feat, out_feat):
-            return nn.Sequential(
-                nn.Linear(in_feat, out_feat),
-                nn.BatchNorm1d(out_feat),
-                nn.ReLU(inplace=True),
-            )
+        def block(in_feat, out_feat, normalize=True):
+            layers = [nn.Linear(in_feat, out_feat)]
+            if normalize:
+                layers.append(nn.BatchNorm1d(out_feat, 0.8))
+            layers.append(nn.LeakyReLU(0.2, inplace=True))
+            return nn.Sequential(*layers)
 
         self._model = nn.Sequential(
-            block(latent_dim, 128),
+            block(latent_dim, 128, normalize=False),
             block(128, 256),
             block(256, 512),
             block(512, 1024),
@@ -66,10 +68,16 @@ class LitModel(pl.LightningModule):
 
         self._criterion = nn.BCEWithLogitsLoss()
 
+        self._log_gen_imgs_dir = None
+
+    def on_fit_start(self):
+        self._log_gen_imgs_dir = Path(self.logger.log_dir) / 'gen_imgs'
+        self._log_gen_imgs_dir.mkdir()
+
     def forward(self, z: torch.Tensor):
         return self._generator(z)
 
-    def training_step(self, batch: torch.Tensor):
+    def training_step(self, batch: torch.Tensor, batch_idx: int):
         x, _ = batch
         batch_size = x.size(0)
 
@@ -80,8 +88,13 @@ class LitModel(pl.LightningModule):
         self.toggle_optimizer(opt_g)
         opt_g.zero_grad()
         x_g = self(z)
+        torchvision.utils.save_image(
+            x_g[:8*8],
+            self._log_gen_imgs_dir / f'epoch{self.current_epoch:03d}_{batch_idx:05d}.png'
+        )
         y = self._discriminator(x_g)
         loss_g = self._criterion(y, torch.ones(batch_size, 1))
+        self.log("loss_g", loss_g, prog_bar=True)
         self.manual_backward(loss_g)
         opt_g.step()
         self.untoggle_optimizer(opt_g)
@@ -90,9 +103,10 @@ class LitModel(pl.LightningModule):
         opt_d.zero_grad()
         y_r = self._discriminator(x)
         loss_r = self._criterion(y_r, torch.ones(batch_size, 1))
-        y_g = self._discriminator(x_g.detach())  # !!
+        y_g = self._discriminator(self(z).detach())
         loss_g = self._criterion(y_g, torch.zeros(batch_size, 1))
         loss_d = (loss_r + loss_g) / 2
+        self.log("loss_d", loss_d, prog_bar=True)
         self.manual_backward(loss_d)
         opt_d.step()
         self.untoggle_optimizer(opt_d)

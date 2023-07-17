@@ -4,7 +4,7 @@ from litmodel import LitModel
 
 
 BATCH_SIZE = 256
-LATENT_DIM = 128
+LATENT_DIM = 100
 LR = 0.0002
 MAX_EPOCHES = 5
 

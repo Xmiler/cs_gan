@@ -27,4 +27,4 @@ class LitData(pl.LightningDataModule):
                                     transform=transforms.ToTensor())
 
     def train_dataloader(self) -> DataLoader:
-        return DataLoader(self._dataset_train, batch_size=self._batch_size, num_workers=4)
+        return DataLoader(self._dataset_train, batch_size=self._batch_size, shuffle=True, num_workers=4)
