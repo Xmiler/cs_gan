@@ -90,10 +90,11 @@ class LitModel(pl.LightningModule):
         self.toggle_optimizer(opt_g)
         opt_g.zero_grad()
         x_g = self(z)
-        torchvision.utils.save_image(
-            x_g[:8*8],
-            self._log_gen_imgs_dir / f'epoch{self.current_epoch:03d}_{batch_idx:05d}.png'
-        )
+        if batch_idx % 100 == 0:
+            torchvision.utils.save_image(
+                x_g[:8*8],
+                self._log_gen_imgs_dir / f'epoch{self.current_epoch:03d}_{batch_idx:05d}.png'
+            )
         y = self._discriminator(x_g)
         loss_g = self._criterion(y, gt_t)
         self.log("loss_g", loss_g, prog_bar=True)
