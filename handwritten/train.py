@@ -3,10 +3,10 @@ from litdata import LitData
 from litmodel import LitModel
 
 
-BATCH_SIZE = 256
-LATENT_DIM = 100
-LR = 0.0002
-MAX_EPOCHES = 5
+BATCH_SIZE = 128
+LATENT_DIM = 64
+LR = 0.00001
+MAX_EPOCHES = 200
 
 if __name__ == '__main__':
 
