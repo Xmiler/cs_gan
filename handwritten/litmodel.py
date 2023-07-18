@@ -82,6 +82,8 @@ class LitModel(pl.LightningModule):
         batch_size = x.size(0)
 
         z = torch.randn(batch_size, self.hparams.latent_dim, device=self.device)
+        gt_f = torch.zeros(batch_size, 1, device=self.device)
+        gt_t = torch.ones(batch_size, 1, device=self.device)
 
         opt_g, opt_d = self.optimizers()
 
@@ -93,7 +95,7 @@ class LitModel(pl.LightningModule):
             self._log_gen_imgs_dir / f'epoch{self.current_epoch:03d}_{batch_idx:05d}.png'
         )
         y = self._discriminator(x_g)
-        loss_g = self._criterion(y, torch.ones(batch_size, 1))
+        loss_g = self._criterion(y, gt_t)
         self.log("loss_g", loss_g, prog_bar=True)
         self.manual_backward(loss_g)
         opt_g.step()
@@ -102,9 +104,9 @@ class LitModel(pl.LightningModule):
         self.toggle_optimizer(opt_d)
         opt_d.zero_grad()
         y_r = self._discriminator(x)
-        loss_r = self._criterion(y_r, torch.ones(batch_size, 1))
+        loss_r = self._criterion(y_r, gt_t)
         y_g = self._discriminator(self(z).detach())
-        loss_g = self._criterion(y_g, torch.zeros(batch_size, 1))
+        loss_g = self._criterion(y_g, gt_f)
         loss_d = (loss_r + loss_g) / 2
         self.log("loss_d", loss_d, prog_bar=True)
         self.manual_backward(loss_d)
