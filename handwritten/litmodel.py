@@ -11,15 +11,15 @@ class Generator(nn.Module):
         super().__init__()
         self._img_shape = img_shape
 
-        def block(in_feat, out_feat, normalize=True):
-            layers = [nn.Linear(in_feat, out_feat)]
-            if normalize:
-                layers.append(nn.BatchNorm1d(out_feat, 0.8))
-            layers.append(nn.LeakyReLU(0.2, inplace=True))
-            return nn.Sequential(*layers)
+        def block(in_feat, out_feat):
+            return nn.Sequential(
+                nn.Linear(in_feat, out_feat),
+                nn.BatchNorm1d(out_feat),
+                nn.ReLU(inplace=True),
+            )
 
         self._model = nn.Sequential(
-            block(latent_dim, 128, normalize=False),
+            block(latent_dim, 128),
             block(128, 256),
             block(256, 512),
             block(512, 1024),
@@ -37,12 +37,17 @@ class Discriminator(nn.Module):
     def __init__(self, img_shape: tuple[int]):
         super().__init__()
 
+        def block(in_feat, out_feat):
+            return nn.Sequential(
+                nn.Linear(in_feat, out_feat),
+                nn.LeakyReLU(0.2, inplace=True),
+            )
+
         self._model = nn.Sequential(
-            nn.Linear(int(np.prod(img_shape)), 512),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 1),
+            block(int(np.prod(img_shape)), 512),
+            block(512, 256),
+            block(256, 128),
+            nn.Linear(128, 1),
         )
 
     def forward(self, x: torch.Tensor):
@@ -57,7 +62,6 @@ class LitModel(pl.LightningModule):
             img_shape: tuple[int],
             latent_dim: int,
             lr: float,
-            adam_betas: tuple[float] = (.5, .999),
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -81,7 +85,6 @@ class LitModel(pl.LightningModule):
         x, _ = batch
         batch_size = x.size(0)
 
-        z = torch.randn(batch_size, self.hparams.latent_dim, device=self.device)
         gt_f = torch.zeros(batch_size, 1, device=self.device)
         gt_t = torch.ones(batch_size, 1, device=self.device)
 
@@ -89,6 +92,7 @@ class LitModel(pl.LightningModule):
 
         self.toggle_optimizer(opt_g)
         opt_g.zero_grad()
+        z = torch.randn(batch_size, self.hparams.latent_dim, device=self.device)
         x_g = self(z)
         if batch_idx % 100 == 0:
             torchvision.utils.save_image(
@@ -106,6 +110,7 @@ class LitModel(pl.LightningModule):
         opt_d.zero_grad()
         y_r = self._discriminator(x)
         loss_r = self._criterion(y_r, gt_t)
+        z = torch.randn(batch_size, self.hparams.latent_dim, device=self.device)
         y_g = self._discriminator(self(z).detach())
         loss_g = self._criterion(y_g, gt_f)
         loss_d = (loss_r + loss_g) / 2
@@ -115,7 +120,6 @@ class LitModel(pl.LightningModule):
         self.untoggle_optimizer(opt_d)
 
     def configure_optimizers(self):
-        lr, betas = self.hparams.lr, self.hparams.adam_betas
-        opt_g = torch.optim.Adam(self._generator.parameters(), lr=lr, betas=betas)
-        opt_d = torch.optim.Adam(self._discriminator.parameters(), lr=lr, betas=betas)
+        opt_g = torch.optim.Adam(self._generator.parameters(), lr=self.hparams.lr)
+        opt_d = torch.optim.Adam(self._discriminator.parameters(), lr=self.hparams.lr)
         return [opt_g, opt_d], []
