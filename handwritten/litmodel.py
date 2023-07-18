@@ -81,7 +81,7 @@ class LitModel(pl.LightningModule):
         x, _ = batch
         batch_size = x.size(0)
 
-        z = torch.randn(batch_size, self.hparams.latent_dim)
+        z = torch.randn(batch_size, self.hparams.latent_dim, device=self.device)
 
         opt_g, opt_d = self.optimizers()
 
