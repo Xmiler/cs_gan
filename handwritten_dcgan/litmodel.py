@@ -68,6 +68,15 @@ class LitModel(pl.LightningModule):
         self._generator = Generator(self.hparams.latent_dim, self.hparams.img_shape)
         self._discriminator = Discriminator(self.hparams.img_shape)
 
+        def weights_init(m):
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+                torch.nn.init.normal_(m.weight, 0.0, 0.02)
+            if isinstance(m, nn.BatchNorm2d):
+                torch.nn.init.normal_(m.weight, 0.0, 0.02)
+                torch.nn.init.constant_(m.bias, 0)
+        self._generator = self._generator.apply(weights_init)
+        self._discriminator = self._discriminator.apply(weights_init)
+
         self._criterion = nn.BCEWithLogitsLoss()
 
         self._log_gen_imgs_dir = None
